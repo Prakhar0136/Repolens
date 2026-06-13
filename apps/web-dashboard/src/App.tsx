@@ -8,10 +8,12 @@ import {
   MiniMap,
   useNodesState,
   useEdgesState,
-  Node,
-  Edge
 } from '@xyflow/react';
-import '@xyflow/react/dist/style.css';
+
+import type {
+  Node,
+  Edge,
+} from '@xyflow/react';
 
 export default function App() {
   // --- PART 1: THE MEMORY STATE ---
