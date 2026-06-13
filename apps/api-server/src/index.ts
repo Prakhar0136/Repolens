@@ -120,6 +120,50 @@ app.post('/api/repo/:repoId/search', async (req, res) => {
     }
 });
 
+/**
+ * Endpoint 3: Fetch Visual Graph Data
+ * Why it's needed: The React frontend needs a list of all files (nodes) 
+ * and their connections (edges) to draw the visual map.
+ */
+app.get('/api/repo/:repoId/graph', async (req, res) => {
+    const { repoId } = req.params;
+
+    try {
+        // 1. Fetch all the 'buildings' (Files)
+        const files = await prisma.codeFile.findMany({
+            where: { repositoryId: repoId },
+            select: {
+                id: true,
+                path: true,
+                name: true,
+                language: true,
+            }
+        });
+
+        // 2. Fetch all the 'roads' (Dependencies)
+        const edges = await prisma.dependencyEdge.findMany({
+            where: {
+                repositoryId: repoId
+            },
+            select: {
+                id: true,
+                sourceFileId: true,
+                targetFileId: true,
+            }
+        });
+
+        // 3. Send the package back to the frontend
+        return res.status(200).json({
+            nodes: files,
+            edges: edges
+        });
+
+    } catch (error) {
+        console.error('Error fetching graph data:', error);
+        return res.status(500).json({ error: 'Failed to load visual map data.' });
+    }
+});
+
 const PORT = process.env.PORT || 3001;
 
 // Ensure a baseline fallback user exists so repo relationships don't break
