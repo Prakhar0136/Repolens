@@ -176,6 +176,35 @@ await prisma.user.upsert({
     },
 });
 
+/**
+ * Endpoint 4: Check Repository Ingestion Status
+ * Why it's needed: The frontend needs to check if the repository is still processing,
+ * has failed, or is ready to render its visual graph canvas.
+ */
+app.get('/api/repo/:repoId/status', async (req, res) => {
+    const { repoId } = req.params;
+
+    try {
+        const repo = await prisma.repository.findUnique({
+            where: { id: repoId },
+            select: {
+                id: true,
+                status: true,
+                name: true,
+            }
+        });
+
+        if (!repo) {
+            return res.status(404).json({ error: 'Repository tracking ticket not found.' });
+        }
+
+        return res.status(200).json({ status: repo.status, name: repo.name });
+    } catch (error) {
+        console.error('Status fetching error:', error);
+        return res.status(500).json({ error: 'Failed to look up processing status.' });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`🌐 RepoLens API Server listening cleanly on port ${PORT}`);
 });
