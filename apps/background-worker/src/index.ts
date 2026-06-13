@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { rm } from 'fs/promises';
 import { parseRepositoryStructure } from './utils/parser.js';
+import { saveRepositoryData } from './utils/db.js'; // <-- NEW IMPORT
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -23,24 +24,22 @@ const repoWorker = new Worker(
         const tmpClonePath = path.join(process.cwd(), 'storage', 'tmp', repoId);
 
         try {
-            // Execute the named simpleGit function wrapper safely
             const git = simpleGit();
             await git.clone(githubUrl, tmpClonePath, ['--depth', '1']);
             console.log(`[Job ${job.id}] Successfully cloned to ${tmpClonePath}`);
 
-            // Run our AST structure analyzer
             const structuralMap = parseRepositoryStructure(tmpClonePath);
             console.log(`[Job ${job.id}] AST Parsing Complete. Found ${structuralMap.length} source files.`);
 
-            // Clear temporary directory files once mapping analytics data structure is loaded
+            // <-- NEW: Save parsed structures and generate AI vectors
+            await saveRepositoryData(repoId, structuralMap);
+
             await rm(tmpClonePath, { recursive: true, force: true });
 
-            // TODO (Phase 4): Send file content chunks to AI for vector embeddings and store in DB
             return { success: true, processedFiles: structuralMap.length };
 
         } catch (error: any) {
             console.error(`[Job ${job.id}] Error processing repository:`, error);
-            // Clean up directory if a process crash occurs
             if (fs.existsSync(tmpClonePath)) {
                 await rm(tmpClonePath, { recursive: true, force: true });
             }
@@ -48,12 +47,10 @@ const repoWorker = new Worker(
         }
     },
     {
-        // FIX: Pass the raw connection config object directly.
-        // BullMQ will use its own internal ioredis package to manage this safely.
         connection: {
             host: REDIS_HOST,
             port: REDIS_PORT,
-            maxRetriesPerRequest: null, // Required configuration by BullMQ
+            maxRetriesPerRequest: null,
         }
     }
 );
