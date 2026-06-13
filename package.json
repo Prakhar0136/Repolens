@@ -1,0 +1,16 @@
+{
+  "name": "repolens-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev --workspace=apps/api-server",
+    "dev:worker": "npm run dev --workspace=apps/background-worker",
+    "dev:web": "npm run dev --workspace=apps/web-dashboard"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.3"
+  }
+}

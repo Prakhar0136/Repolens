@@ -1,0 +1,92 @@
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector] // Enables AI vector search inside Postgres
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"] 
+}
+
+enum RepoStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum EdgeType {
+  IMPORT
+  EXPORTS_TO
+  CALLS_FUNCTION
+}
+
+model User {
+  id           String       @id @default(uuid())
+  email        String       @unique
+  passwordHash String?      // Nullable if using Clerk for OAuth/Auth third-party provider
+  clerkId      String?      @unique // For future-proofing with Clerk Free Tier
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+  repositories Repository[]
+}
+
+model Repository {
+  id          String           @id @default(uuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  githubUrl   String
+  branch      String           @default("main")
+  status      RepoStatus       @default(PENDING)
+  errorMessage String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  files       CodeFile[]
+  edges       DependencyEdge[]
+}
+
+model CodeFile {
+  id           String           @id @default(uuid())
+  repositoryId String
+  repository   Repository       @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  path         String           // e.g., "src/components/Button.tsx"
+  name         String           // e.g., "Button.tsx"
+  language     String           // e.g., "typescript"
+  totalLines   Int
+  createdAt    DateTime         @default(now())
+  chunks       CodeChunk[]
+  
+  // Relations for tracking dependencies structurally
+  dependencies DependencyEdge[] @relation("SourceFile")
+  dependents   DependencyEdge[] @relation("TargetFile")
+}
+
+model CodeChunk {
+  id         String   @id @default(uuid())
+  fileId     String
+  file       CodeFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  content    String   @db.Text // The raw text block of code logic
+  lineStart  Int
+  lineEnd    Int
+  
+  // Note: Standard Prisma doesn't fully abstract Vector types natively without raw SQL, 
+  // We specify it as an Unsupported native type so Postgres can handle it as a mathematical vector.
+  // Gemini embedding vectors typically output 768 or 1536 dimensions.
+  embedding  Unsupported("vector(768)")? 
+}
+
+model DependencyEdge {
+  id           String     @id @default(uuid())
+  repositoryId String
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  
+  sourceFileId String
+  sourceFile   CodeFile   @relation("SourceFile", fields: [sourceFileId], references: [id], onDelete: Cascade)
+  
+  targetFileId String
+  targetFile   CodeFile   @relation("TargetFile", fields: [targetFileId], references: [id], onDelete: Cascade)
+  
+  type         EdgeType   @default(IMPORT)
+}
